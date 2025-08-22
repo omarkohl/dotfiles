@@ -1,0 +1,389 @@
+#!/usr/bin/env python3
+import argparse
+import subprocess
+import sys
+from typing import List, Tuple, Dict
+
+
+def run(
+    cmd: List[str], capture: bool = True, check: bool = True, text: bool = True
+) -> subprocess.CompletedProcess:
+    return subprocess.run(cmd, capture_output=capture, check=check, text=text)
+
+
+def jj_changes_in_range(base: str, target_change: str) -> List[str]:
+    """
+    Return a list of short change IDs in BASE..TARGET, ordered oldest->newest.
+    """
+    # Get list (newest first), then reverse.
+    # Using short change ids for branch names as requested by user flow.
+    cp = run(
+        [
+            "jj",
+            "log",
+            "-r",
+            f"{base}..{target_change}",
+            "-T",
+            'change_id.short() ++ "\n"',
+            "--no-graph",
+        ]
+    )
+    ids = [line.strip() for line in cp.stdout.splitlines() if line.strip()]
+    ids.reverse()
+    return ids
+
+
+def jj_description(change: str) -> Tuple[str, str]:
+    """
+    Return (title, body) from the change description.
+    Title = first line; body = remaining lines (may be empty).
+    """
+    cp = run(["jj", "log", "-r", change, "-T", "description", "--no-graph"])
+    full = cp.stdout.replace("\r\n", "\n").replace("\r", "\n").strip()
+    if not full:
+        return f"Change {change}", ""
+
+    lines = full.splitlines()
+    title = lines[0].strip() if lines else f"Change {change}"
+    body = "\n".join(lines[1:]).strip() if len(lines) > 1 else ""
+    return title, body
+
+
+def gh_pr_create(
+    head_branch: str, base_branch: str, title: str, body: str, reviewers: str = None
+) -> int:
+    """
+    Create PR and return its number.
+    """
+    # Ensure body is not None
+    body_text = body or ""
+
+    # Build the command
+    cmd = [
+        "gh",
+        "pr",
+        "create",
+        "-H",
+        head_branch,
+        "-B",
+        base_branch,
+        "-t",
+        title,
+        "-b",
+        body_text,
+    ]
+
+    # Add reviewers if specified
+    if reviewers:
+        cmd.extend(["--reviewer", reviewers])
+
+    # Create the PR first
+    run(cmd)
+
+    # Then get the PR number using gh pr view with JSON output
+    cp = run(["gh", "pr", "view", head_branch, "--json", "number", "--jq", ".number"])
+    pr_number_str = cp.stdout.strip()
+    try:
+        return int(pr_number_str)
+    except ValueError:
+        print(
+            f"Failed to parse PR number from gh output: {pr_number_str}",
+            file=sys.stderr,
+        )
+        raise
+
+
+def gh_pr_get_body(pr_number: int) -> str:
+    """Get the body of an existing PR."""
+    cp = run(["gh", "pr", "view", str(pr_number), "--json", "body", "--jq", ".body"])
+    return cp.stdout.strip()  # Strip whitespace for cleaner handling
+
+
+def gh_pr_exists(branch: str) -> bool:
+    """Check if a PR already exists for the given branch."""
+    try:
+        run(["gh", "pr", "view", branch, "--json", "number"], capture=True)
+        return True
+    except subprocess.CalledProcessError:
+        return False
+
+
+def gh_pr_set_body(pr_number: int, new_body: str) -> None:
+    # Pass body as a single arg; subprocess handles quoting safely.
+    run(["gh", "pr", "edit", str(pr_number), "--body", new_body])
+
+
+def gh_pr_set_title(pr_number: int, new_title: str) -> None:
+    run(["gh", "pr", "edit", str(pr_number), "--title", new_title])
+
+
+def gh_pr_add_reviewers(pr_number: int, reviewers: str) -> None:
+    """Add reviewers to an existing PR."""
+    run(["gh", "pr", "edit", str(pr_number), "--add-reviewer", reviewers])
+
+
+def gh_pr_get_title(pr_number: int) -> str:
+    """Get the title of an existing PR."""
+    cp = run(["gh", "pr", "view", str(pr_number), "--json", "title", "--jq", ".title"])
+    return cp.stdout.strip()
+
+
+def get_repo_info() -> Tuple[str, str]:
+    """Get repo owner and name from gh cli."""
+    cp = run(
+        [
+            "gh",
+            "repo",
+            "view",
+            "--json",
+            "owner,name",
+            "--jq",
+            '.owner.login + "/" + .name',
+        ]
+    )
+    return cp.stdout.strip(), cp.stdout.strip().split("/")[-1]
+
+
+def get_commit_hash(change_id: str) -> str:
+    """Get full commit hash for a change ID."""
+    cp = run(["jj", "log", "-r", change_id, "-T", "commit_id", "--no-graph"])
+    return cp.stdout.strip()
+
+
+def build_stack_block(all_prs: List[int], current: int) -> str:
+    """
+    Build the 'Stacked PRs' block with an arrow on the current PR.
+    Newest PRs at top, oldest at bottom.
+    """
+    lines = ["PRs:"]
+    # Reverse the list so newest (last in the list) appears first
+    for n in reversed(all_prs):
+        if n == current:
+            lines.append(f"* ➡️ #{n}")
+        else:
+            lines.append(f"* #{n}")
+    return "\n".join(lines)
+
+
+def build_stacked_pr_body(
+    change_id: str, pr_number: int, all_prs: List[int], commit_body: str, repo_name: str
+) -> str:
+    """Build the body for a stacked PR."""
+    commit_hash = get_commit_hash(change_id)
+    short_hash = commit_hash[:7]
+
+    # Build the main content
+    lines = []
+    lines.append(
+        f"This is a stacked PR[^1]. Only review commit [{short_hash}](https://github.com/{repo_name}/pull/{pr_number}/commits/{commit_hash})."
+    )
+    lines.append("")
+    lines.append(build_stack_block(all_prs, pr_number))
+    lines.append("")
+    if commit_body:
+        lines.append("---")
+        lines.append("")
+        lines.append(commit_body)
+        lines.append("")
+    lines.append(
+        "[^1]: A stacked PR is a pull request that depends on other pull requests. The current PR depends on the ones listed below it and MUST NOT be merged before they are merged. The PRs listed above the current one in turn depend on it and won't be merged until the current one is."
+    )
+    lines.append("")
+
+    return "\n".join(lines)
+
+
+def main():
+    parser = argparse.ArgumentParser(
+        description="Create GitHub PRs for all jj changes in BASE..CHANGE_ID as a stacked series."
+    )
+    parser.add_argument(
+        "change_id", help="Top change ID to build PRs for (e.g., rktqquxy)."
+    )
+    parser.add_argument(
+        "-B", "--base", default="main", help="Base branch to target (default: main)."
+    )
+    parser.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="Show what would happen without pushing/creating PRs.",
+    )
+    parser.add_argument(
+        "--add-reviewer",
+        help="Comma-separated list of reviewers to add to the PR (same format as gh pr create/edit).",
+    )
+    args = parser.parse_args()
+
+    # Validate we're in a jj repository
+    try:
+        run(["jj", "status"], capture=True)
+    except subprocess.CalledProcessError:
+        print("Error: Not in a jj repository or jj not available.", file=sys.stderr)
+        sys.exit(1)
+
+    try:
+        changes = jj_changes_in_range(args.base, args.change_id)
+    except subprocess.CalledProcessError as e:
+        error_msg = e.stderr or str(e)
+        if "No such revision" in error_msg:
+            print(
+                f"Error: Change ID '{args.change_id}' not found. Make sure it's a valid change ID.",
+                file=sys.stderr,
+            )
+        else:
+            print(f"Error getting changes: {error_msg}", file=sys.stderr)
+        sys.exit(1)
+
+    if not changes:
+        print(
+            f"No changes found in range {args.base}..{args.change_id}. Nothing to do."
+        )
+        return
+
+    print(f"Discovered {len(changes)} change(s) in stack: {' '.join(changes)}")
+
+    # Get repo info for commit links
+    repo_name, _ = get_repo_info()
+
+    branches: Dict[str, str] = {}  # change_id -> branch name
+    pr_numbers: Dict[str, int] = {}  # change_id -> PR number
+
+    for change in changes:
+        branch = f"push-{change}"
+        title, body = ("", "")
+        try:
+            title, body = jj_description(change)
+        except subprocess.CalledProcessError as e:
+            print(
+                f"[{change}] Failed to read description: {e.stderr or str(e)}",
+                file=sys.stderr,
+            )
+            sys.exit(1)
+
+        print(f"[{change}] Will use branch '{branch}' and title '{title}'")
+
+        if args.dry_run:
+            print(f"[{change}] DRY-RUN: jj git push -b {branch}")
+            print(
+                f"[{change}] DRY-RUN: gh pr create -H {branch} -B {args.base} -t '{title}' -b <body>"
+            )
+            branches[change] = branch
+            pr_numbers[change] = -1  # placeholder
+            continue
+
+        # Create bookmark/branch and push
+        try:
+            # Create bookmark if it doesn't exist
+            try:
+                run(["jj", "bookmark", "create", branch, "-r", change], capture=True)
+                print(f"[{change}] Created bookmark '{branch}'")
+            except subprocess.CalledProcessError:
+                # Bookmark might already exist, that's ok
+                print(f"[{change}] Bookmark '{branch}' already exists")
+
+            # Push the bookmark
+            run(["jj", "git", "push", "-b", branch])
+            branches[change] = branch
+            print(f"[{change}] Pushed bookmark '{branch}'")
+        except subprocess.CalledProcessError as e:
+            print(f"[{change}] Push failed: {e.stderr or str(e)}", file=sys.stderr)
+            sys.exit(1)
+
+        # Create or update PR
+        try:
+            if gh_pr_exists(branch):
+                print(
+                    f"[{change}] PR already exists for branch '{branch}', getting PR number..."
+                )
+                cp = run(
+                    ["gh", "pr", "view", branch, "--json", "number", "--jq", ".number"]
+                )
+                pr_num = int(cp.stdout.strip())
+                print(f"[{change}] Found existing PR #{pr_num}")
+
+                # Check if title needs updating
+                existing_title = gh_pr_get_title(pr_num)
+                if existing_title != title:
+                    gh_pr_set_title(pr_num, title)
+                    print(f"[{change}] Updated PR #{pr_num} title")
+
+                # Add reviewers if specified
+                if args.add_reviewer:
+                    gh_pr_add_reviewers(pr_num, args.add_reviewer)
+                    print(f"[{change}] Added reviewers to PR #{pr_num}")
+
+                pr_numbers[change] = pr_num
+            else:
+                # For single change, use commit body directly; for multiple changes we'll update later
+                initial_body = body if len(changes) == 1 else ""
+                pr_num = gh_pr_create(
+                    branch, args.base, title, initial_body, args.add_reviewer
+                )
+                print(f"[{change}] Created PR #{pr_num}")
+                pr_numbers[change] = pr_num
+        except subprocess.CalledProcessError as e:
+            print(
+                f"[{change}] PR creation/lookup failed: {e.stderr or str(e)}",
+                file=sys.stderr,
+            )
+            sys.exit(1)
+
+    # Update PR bodies based on whether it's single or stacked
+    created_prs_in_order = [pr_numbers[c] for c in changes if pr_numbers.get(c, -1) > 0]
+
+    if not args.dry_run:
+        print("Updating PR descriptions…")
+
+        # Get commit bodies for each change
+        change_bodies = {}
+        for change in changes:
+            _, body = jj_description(change)
+            change_bodies[change] = body
+
+        for change in changes:
+            pr_num = pr_numbers.get(change, -1)
+            if pr_num <= 0:
+                continue
+
+            try:
+                if len(created_prs_in_order) == 1:
+                    # Single PR: use commit body directly
+                    new_body = change_bodies[change] or ""
+                else:
+                    # Stacked PR: use special format
+                    new_body = build_stacked_pr_body(
+                        change,
+                        pr_num,
+                        created_prs_in_order,
+                        change_bodies[change],
+                        repo_name,
+                    )
+
+                # Check if body needs updating
+                existing_body = gh_pr_get_body(pr_num)
+                if existing_body != new_body:
+                    gh_pr_set_body(pr_num, new_body)
+                    print(f"[{change}] Updated PR #{pr_num} body")
+                else:
+                    print(f"[{change}] PR #{pr_num} body already up to date")
+
+            except subprocess.CalledProcessError as e:
+                print(
+                    f"[{change}] Failed to update PR #{pr_num} body: {e.stderr or str(e)}",
+                    file=sys.stderr,
+                )
+                sys.exit(1)
+
+    # Summary
+    print("\n=== Summary ===")
+    for change in changes:
+        branch = branches.get(change, "?")
+        prn = pr_numbers.get(change, -1)
+        if prn > 0:
+            print(f"{change} -> branch '{branch}' -> PR #{prn}")
+        else:
+            print(f"{change} -> branch '{branch}' -> (no PR created in dry-run)")
+
+
+if __name__ == "__main__":
+    main()

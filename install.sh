@@ -1,0 +1,109 @@
+#!/bin/bash
+
+set -e
+
+DOTFILES_DIR="$HOME/dotfiles"
+BACKUP_DIR="$HOME/.dotfiles-backup-$(date +%Y%m%d-%H%M%S)"
+
+# Colors for output
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+NC='\033[0m' # No Color
+
+info() {
+    echo -e "${GREEN}[INFO]${NC} $1"
+}
+
+warn() {
+    echo -e "${YELLOW}[WARN]${NC} $1"
+}
+
+error() {
+    echo -e "${RED}[ERROR]${NC} $1"
+}
+
+backup_if_exists() {
+    local file="$1"
+    if [[ -e "$file" || -L "$file" ]]; then
+        mkdir -p "$BACKUP_DIR"
+        mv "$file" "$BACKUP_DIR/"
+        warn "Backed up existing $file to $BACKUP_DIR/"
+    fi
+}
+
+create_symlink() {
+    local source="$1"
+    local target="$2"
+    
+    if [[ ! -e "$source" ]]; then
+        error "Source file $source does not exist"
+        return 1
+    fi
+    
+    backup_if_exists "$target"
+    
+    mkdir -p "$(dirname "$target")"
+    ln -sf "$source" "$target"
+    info "Linked $source -> $target"
+}
+
+main() {
+    info "Installing dotfiles from $DOTFILES_DIR"
+    
+    # Install scripts to ~/.local/bin
+    info "Installing scripts..."
+    mkdir -p "$HOME/.local/bin"
+    
+    for script in "$DOTFILES_DIR/bin"/*; do
+        if [[ -f "$script" && -x "$script" ]]; then
+            script_name=$(basename "$script")
+            create_symlink "$script" "$HOME/.local/bin/$script_name"
+        fi
+    done
+    
+    # Install shell configs
+    info "Installing shell configurations..."
+    
+    # Example: if you have shell/bashrc
+    if [[ -f "$DOTFILES_DIR/shell/bashrc" ]]; then
+        create_symlink "$DOTFILES_DIR/shell/bashrc" "$HOME/.bashrc"
+    fi
+    
+    # Example: if you have shell/zshrc
+    if [[ -f "$DOTFILES_DIR/shell/zshrc" ]]; then
+        create_symlink "$DOTFILES_DIR/shell/zshrc" "$HOME/.zshrc"
+    fi
+    
+    # Install git config
+    info "Installing git configuration..."
+    if [[ -f "$DOTFILES_DIR/git/gitconfig" ]]; then
+        create_symlink "$DOTFILES_DIR/git/gitconfig" "$HOME/.gitconfig"
+    fi
+    
+    # Install application configs
+    info "Installing application configurations..."
+    if [[ -d "$DOTFILES_DIR/config" ]]; then
+        for config_dir in "$DOTFILES_DIR/config"/*; do
+            if [[ -d "$config_dir" ]]; then
+                config_name=$(basename "$config_dir")
+                create_symlink "$config_dir" "$HOME/.config/$config_name"
+            fi
+        done
+    fi
+    
+    # Check if ~/.local/bin is in PATH
+    if [[ ":$PATH:" != *":$HOME/.local/bin:"* ]]; then
+        warn "~/.local/bin is not in your PATH"
+        warn "Add this to your shell config:"
+        warn "export PATH=\"\$HOME/.local/bin:\$PATH\""
+    fi
+    
+    info "Dotfiles installation complete!"
+    
+    if [[ -d "$BACKUP_DIR" ]]; then
+        info "Backups created in $BACKUP_DIR"
+    fi
+}
+
+main "$@"
