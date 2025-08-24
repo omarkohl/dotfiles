@@ -263,7 +263,7 @@ def main():
         print(f"[{change}] Will use branch '{branch}' and title '{title}'")
 
         if args.dry_run:
-            print(f"[{change}] DRY-RUN: jj git push -b {branch}")
+            print(f"[{change}] DRY-RUN: jj git push --allow-new -b {branch}")
             print(
                 f"[{change}] DRY-RUN: gh pr create -H {branch} -B {args.base} -t '{title}' -b <body>"
             )
@@ -282,7 +282,7 @@ def main():
                 print(f"[{change}] Bookmark '{branch}' already exists")
 
             # Push the bookmark
-            run(["jj", "git", "push", "-b", branch])
+            run(["jj", "git", "push", "--allow-new", "-b", branch])
             branches[change] = branch
             print(f"[{change}] Pushed bookmark '{branch}'")
         except subprocess.CalledProcessError as e:
