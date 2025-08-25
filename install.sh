@@ -1,6 +1,7 @@
 #!/bin/bash
-
-set -e
+set -o nounset
+set -o pipefail
+set -o errexit
 
 DOTFILES_DIR="$HOME/dotfiles"
 BACKUP_DIR="$HOME/.dotfiles-backup-$(date +%Y%m%d-%H%M%S)"
@@ -57,6 +58,7 @@ main() {
     
     for script in "$DOTFILES_DIR/bin"/*; do
         if [[ -f "$script" && -x "$script" ]]; then
+            info "Installing script ${script}"
             script_name=$(basename "$script")
             create_symlink "$script" "$HOME/.local/bin/$script_name"
         fi
