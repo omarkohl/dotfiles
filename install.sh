@@ -101,6 +101,14 @@ main() {
         warn "export PATH=\"\$HOME/.local/bin:\$PATH\""
     fi
     
+    # Check for jj email configuration
+    if [[ -f "$DOTFILES_DIR/config/jj/config.toml" ]] && \
+            [[ ! -f "$HOME/.config/jj/conf.d/local.toml" ]]; then
+        warn "jj conf.d/local.toml not found"
+        warn "Copy \"$HOME/.config/jj/conf.d/local.toml.example\"" \
+            "to \"$HOME/.config/jj/conf.d/local.toml\" and set your email"
+    fi
+    
     info "Dotfiles installation complete!"
     
     if [[ -d "$BACKUP_DIR" ]]; then

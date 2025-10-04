@@ -1,0 +1,27 @@
+[user]
+name = "Omar Kohl"
+
+[ui]
+default-command = "log"
+
+[revsets]
+log = "present(@) | ancestors(immutable_heads().., 7) | present(trunk())"
+
+[aliases]
+# advance 'main'
+adm = ["bookmark", "set", "main", "-r", "@-"]
+add-parent = ["util", "exec", "--", "bash", "-c", """
+set -euo pipefail
+if [ "${1:-}" = "-h" ] || [ "${1:-}" = "--help" ]; then
+  echo "Usage: jj add-parent <revision> <parent>"
+  echo ""
+  echo "Add a new parent to a revision while keeping existing parents."
+  echo ""
+  echo "Arguments:"
+  echo "  <revision>  The revision to modify"
+  echo "  <parent>    The parent revision to add"
+  exit 0
+fi
+jj rebase -s ${1} -d ${1}- -d ${2}
+jj simplify-parents -r ${1}
+""", ""]
