@@ -1,0 +1,5 @@
+" This file is intentionally minimal
+" The main configuration is in ~/.config/vim/vimrc
+" which gets symlinked by the dotfiles installer
+
+source ~/.config/vim/vimrc

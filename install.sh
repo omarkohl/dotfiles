@@ -83,13 +83,35 @@ main() {
         create_symlink "$DOTFILES_DIR/git/gitconfig" "$HOME/.gitconfig"
     fi
     
+    # Install vim configuration
+    info "Installing vim configuration..."
+    if [[ -f "$DOTFILES_DIR/config/vim/vimrc" ]]; then
+        # Create vim config directory symlink
+        create_symlink "$DOTFILES_DIR/config/vim" "$HOME/.config/vim"
+        
+        # Create traditional vim config symlink for compatibility
+        create_symlink "$DOTFILES_DIR/config/vim/vim_vimrc" "$HOME/.vimrc"
+        
+        # Install vim-plug if not present
+        if [[ ! -f "$HOME/.vim/autoload/plug.vim" ]]; then
+            info "Installing vim-plug..."
+            mkdir -p "$HOME/.vim/autoload"
+            curl -fLo "$HOME/.vim/autoload/plug.vim" --create-dirs \
+                https://raw.githubusercontent.com/junegunn/vim-plug/master/plug.vim
+            info "vim-plug installed successfully"
+        fi
+    fi
+    
     # Install application configs
     info "Installing application configurations..."
     if [[ -d "$DOTFILES_DIR/config" ]]; then
         for config_dir in "$DOTFILES_DIR/config"/*; do
             if [[ -d "$config_dir" ]]; then
                 config_name=$(basename "$config_dir")
-                create_symlink "$config_dir" "$HOME/.config/$config_name"
+                # Skip vim config as it's handled specially above
+                if [[ "$config_name" != "vim" ]]; then
+                    create_symlink "$config_dir" "$HOME/.config/$config_name"
+                fi
             fi
         done
     fi

@@ -1,0 +1,224 @@
+" Omar's Vim Configuration
+" ========================
+
+" Basic Settings
+" --------------
+set nocompatible               " Be iMproved, required
+filetype off                   " Required for vim-plug
+
+" Install vim-plug if not found
+if empty(glob('~/.vim/autoload/plug.vim'))
+  silent !curl -fLo ~/.vim/autoload/plug.vim --create-dirs
+    \ https://raw.githubusercontent.com/junegunn/vim-plug/master/plug.vim
+endif
+
+" Run PlugInstall if there are missing plugins
+autocmd VimEnter * if len(filter(values(g:plugs), '!isdirectory(v:val.dir)'))
+  \| PlugInstall --sync | source $MYVIMRC
+\| endif
+
+" Plugins
+" -------
+call plug#begin('~/.vim/plugged')
+
+" Essential plugins
+Plug 'tpope/vim-sensible'           " Sensible defaults
+Plug 'tpope/vim-surround'           " Surround text with quotes, brackets, etc.
+Plug 'tpope/vim-commentary'         " Easy commenting
+Plug 'tpope/vim-fugitive'           " Git integration
+Plug 'tpope/vim-unimpaired'         " Handy bracket mappings
+
+" File navigation
+Plug 'preservim/nerdtree'           " File explorer
+Plug 'junegunn/fzf', { 'do': { -> fzf#install() } }
+Plug 'junegunn/fzf.vim'             " Fuzzy finder
+
+" Code completion and language support
+Plug 'dense-analysis/ale'           " Async linting
+Plug 'sheerun/vim-polyglot'         " Language pack
+Plug 'nathangrigg/vim-beancount'    " Beancount accounting syntax and tools
+
+" Interface improvements
+" Plug 'vim-airline/vim-airline'      " Status line (disabled - using built-in)
+" Plug 'vim-airline/vim-airline-themes'
+Plug 'airblade/vim-gitgutter'       " Git diff in the gutter
+
+" Colorschemes
+Plug 'morhetz/gruvbox'              " Gruvbox colorscheme
+Plug 'joshdick/onedark.vim'         " One Dark colorscheme
+
+call plug#end()
+
+" Plugin Settings
+" ---------------
+
+" NERDTree
+map <C-n> :NERDTreeToggle<CR>
+let NERDTreeShowHidden=1
+
+" FZF
+map <C-p> :Files<CR>
+map <C-f> :Rg<CR>
+
+" Built-in status line configuration (replaces airline)
+set laststatus=2                   " Always show status line
+set statusline=                    " Clear the statusline
+set statusline+=%f                 " File path
+set statusline+=%m                 " Modified flag
+set statusline+=%r                 " Readonly flag
+set statusline+=%h                 " Help flag
+set statusline+=%w                 " Preview flag
+set statusline+=%=                 " Right align
+set statusline+=%y                 " File type
+set statusline+=\ [%{&ff}]         " File format
+set statusline+=\ %p%%             " Percentage through file
+set statusline+=\ %l:%c            " Line and column
+set statusline+=\ %L               " Total lines
+
+" ALE
+let g:ale_linters_explicit = 1
+let g:ale_linters = {
+\   'python': ['flake8', 'pylint'],
+\   'javascript': ['eslint'],
+\   'go': ['golint', 'govet'],
+\   'rust': ['cargo'],
+\}
+
+" Basic Vim Settings
+" ------------------
+syntax enable                      " Enable syntax highlighting
+filetype plugin indent on          " Enable file type detection
+
+" Interface
+set number                         " Show line numbers
+set relativenumber                 " Show relative line numbers
+set cursorline                     " Highlight current line
+set showcmd                        " Show command in bottom bar
+set wildmenu                       " Visual autocomplete for command menu
+set lazyredraw                     " Redraw only when we need to
+set showmatch                      " Highlight matching [{()}]
+
+" Search
+set incsearch                      " Search as characters are entered
+set hlsearch                       " Highlight matches
+set ignorecase                     " Ignore case when searching
+set smartcase                      " Unless uppercase letters are used
+
+" Indentation
+set autoindent                     " Auto-indent new lines
+set smartindent                    " Smart indent
+set tabstop=4                      " Number of visual spaces per TAB
+set softtabstop=4                  " Number of spaces in tab when editing
+set shiftwidth=4                   " Number of spaces to use for autoindent
+set expandtab                      " Convert tabs to spaces
+
+" Performance
+set ttyfast                        " Faster redrawing
+set laststatus=2                   " Always display the status line
+
+" Clipboard integration
+" ---------------------
+" Check if vim has clipboard support
+if has('clipboard')
+    " Use system clipboard for all operations (makes y, p, d work with system clipboard)
+    if has('unnamedplus')
+        set clipboard=unnamedplus      " Use + register (X11 clipboard)
+    elseif has('unnamed')
+        set clipboard=unnamed          " Use * register (X11 primary selection)
+    endif
+    
+    " Additional explicit clipboard shortcuts (these always work)
+    vnoremap <leader>c "+y            " Copy selection to clipboard
+    nnoremap <leader>c "+yy           " Copy current line to clipboard
+    nnoremap <leader>v "+p            " Paste from clipboard after cursor
+    nnoremap <leader>V "+P            " Paste from clipboard before cursor
+    inoremap <C-v> <C-r>+             " Paste from clipboard in insert mode
+else
+    " Fallback: manual clipboard commands using external tools
+    " Copy to system clipboard
+    vnoremap <leader>c :w !xclip -selection clipboard<CR><CR>
+    nnoremap <leader>c :.w !xclip -selection clipboard<CR><CR>
+    
+    " Paste from system clipboard
+    nnoremap <leader>v :r !xclip -selection clipboard -o<CR>
+    inoremap <C-v> <Esc>:r !xclip -selection clipboard -o<CR>a
+endif
+
+" Backup and swap files
+set backup                         " Enable backups
+set backupdir=~/.vim/backup//      " Backup directory
+set directory=~/.vim/swap//        " Swap file directory
+set undofile                       " Persistent undo
+set undodir=~/.vim/undo//          " Undo directory
+
+" Create directories if they don't exist
+if !isdirectory($HOME . '/.vim/backup')
+    call mkdir($HOME . '/.vim/backup', 'p')
+endif
+if !isdirectory($HOME . '/.vim/swap')
+    call mkdir($HOME . '/.vim/swap', 'p')
+endif
+if !isdirectory($HOME . '/.vim/undo')
+    call mkdir($HOME . '/.vim/undo', 'p')
+endif
+
+" Colorscheme
+" -----------
+if has('termguicolors')
+    set termguicolors
+endif
+
+set background=dark
+try
+    colorscheme gruvbox
+catch /^Vim\%((\a\+)\)\=:E185/
+    " Fallback to default if gruvbox is not available
+    colorscheme default
+endtry
+
+" Key Mappings
+" ------------
+let mapleader = ","                " Leader key
+
+" Clear search highlighting
+nnoremap <leader><space> :nohlsearch<CR>
+
+" Quick save and quit
+nnoremap <leader>w :w<CR>
+nnoremap <leader>q :q<CR>
+nnoremap <leader>x :x<CR>
+
+" Buffer navigation
+nnoremap <leader>b :buffers<CR>:buffer<Space>
+nnoremap <leader>n :bnext<CR>
+nnoremap <leader>p :bprevious<CR>
+
+" Split navigation
+nnoremap <C-J> <C-W><C-J>
+nnoremap <C-K> <C-W><C-K>
+nnoremap <C-L> <C-W><C-L>
+nnoremap <C-H> <C-W><C-H>
+
+" More natural split opening
+set splitbelow
+set splitright
+
+" Auto-commands
+" -------------
+augroup configgroup
+    autocmd!
+    " Remove trailing whitespace on save
+    autocmd BufWritePre * %s/\s\+$//e
+    
+    " Set specific settings for different file types
+    autocmd FileType yaml setlocal ts=2 sts=2 sw=2 expandtab
+    autocmd FileType json setlocal ts=2 sts=2 sw=2 expandtab
+    autocmd FileType javascript setlocal ts=2 sts=2 sw=2 expandtab
+    autocmd FileType html setlocal ts=2 sts=2 sw=2 expandtab
+    autocmd FileType css setlocal ts=2 sts=2 sw=2 expandtab
+augroup END
+
+" Load local vimrc if it exists
+if filereadable(glob("~/.vimrc.local"))
+    source ~/.vimrc.local
+endif
