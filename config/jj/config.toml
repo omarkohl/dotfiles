@@ -21,6 +21,9 @@ concat(
 [revsets]
 log = "present(@) | ancestors(immutable_heads().., 7) | present(trunk())"
 
+[git]
+private-commits = "description(glob:'private:*')"
+
 [aliases]
 # advance 'main'
 adm = ["bookmark", "set", "main", "-r", "@-"]
