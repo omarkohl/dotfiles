@@ -2,7 +2,7 @@
 import argparse
 import subprocess
 import sys
-from typing import List, Tuple, Dict
+from typing import List, Tuple, Dict, Optional
 
 
 def run(
@@ -50,28 +50,48 @@ def jj_description(change: str) -> Tuple[str, str]:
 
 
 def gh_pr_create(
-    head_branch: str, base_branch: str, title: str, body: str, reviewers: str = None
+    head_branch: str,
+    base_branch: str,
+    title: str,
+    body: str,
+    reviewers: Optional[str] = None,
+    upstream_repo: Optional[str] = None,
+    fork_user: Optional[str] = None,
 ) -> int:
     """
     Create PR and return its number.
+    If upstream_repo and fork_user are provided, creates PR using -R upstream_repo and -H fork_user:head_branch.
     """
     # Ensure body is not None
     body_text = body or ""
 
     # Build the command
-    cmd = [
-        "gh",
-        "pr",
-        "create",
-        "-H",
-        head_branch,
-        "-B",
-        base_branch,
-        "-t",
-        title,
-        "-b",
-        body_text,
-    ]
+    cmd = ["gh"]
+
+    # Add upstream repo if specified
+    if upstream_repo:
+        cmd.extend(["-R", upstream_repo])
+
+    cmd.extend(["pr", "create"])
+
+    # Determine head branch format
+    if fork_user and upstream_repo:
+        head_branch_spec = f"{fork_user}:{head_branch}"
+    else:
+        head_branch_spec = head_branch
+
+    cmd.extend(
+        [
+            "-H",
+            head_branch_spec,
+            "-B",
+            base_branch,
+            "-t",
+            title,
+            "-b",
+            body_text,
+        ]
+    )
 
     # Add reviewers if specified
     if reviewers:
@@ -81,7 +101,13 @@ def gh_pr_create(
     run(cmd)
 
     # Then get the PR number using gh pr view with JSON output
-    cp = run(["gh", "pr", "view", head_branch, "--json", "number", "--jq", ".number"])
+    view_cmd = ["gh"]
+    if upstream_repo:
+        view_cmd.extend(["-R", upstream_repo])
+    view_cmd.extend(
+        ["pr", "view", head_branch_spec, "--json", "number", "--jq", ".number"]
+    )
+    cp = run(view_cmd)
     pr_number_str = cp.stdout.strip()
     try:
         return int(pr_number_str)
@@ -93,38 +119,82 @@ def gh_pr_create(
         raise
 
 
-def gh_pr_get_body(pr_number: int) -> str:
+def gh_pr_get_body(pr_number: int, upstream_repo: Optional[str] = None) -> str:
     """Get the body of an existing PR."""
-    cp = run(["gh", "pr", "view", str(pr_number), "--json", "body", "--jq", ".body"])
+    cmd = ["gh"]
+    if upstream_repo:
+        cmd.extend(["-R", upstream_repo])
+    cmd.extend(["pr", "view", str(pr_number), "--json", "body", "--jq", ".body"])
+    cp = run(cmd)
     return cp.stdout.strip()  # Strip whitespace for cleaner handling
 
 
-def gh_pr_exists(branch: str) -> bool:
+def gh_pr_exists(
+    branch: str, upstream_repo: Optional[str] = None, fork_user: Optional[str] = None
+) -> bool:
     """Check if a PR already exists for the given branch."""
     try:
-        run(["gh", "pr", "view", branch, "--json", "number"], capture=True)
+        cmd = ["gh"]
+
+        # Add upstream repo if specified
+        if upstream_repo:
+            cmd.extend(["-R", upstream_repo])
+
+        cmd.extend(["pr", "view"])
+
+        # Use fork_user:branch format if we're in fork workflow
+        if fork_user and upstream_repo:
+            branch_spec = f"{fork_user}:{branch}"
+        else:
+            branch_spec = branch
+
+        cmd.extend([branch_spec, "--json", "number"])
+
+        run(cmd, capture=True)
         return True
     except subprocess.CalledProcessError:
         return False
 
 
-def gh_pr_set_body(pr_number: int, new_body: str) -> None:
+def gh_pr_set_body(
+    pr_number: int, new_body: str, upstream_repo: Optional[str] = None
+) -> None:
     # Pass body as a single arg; subprocess handles quoting safely.
-    run(["gh", "pr", "edit", str(pr_number), "--body", new_body])
+    cmd = ["gh"]
+    if upstream_repo:
+        cmd.extend(["-R", upstream_repo])
+    cmd.extend(["pr", "edit", str(pr_number), "--body", new_body])
+    run(cmd)
 
 
-def gh_pr_set_title(pr_number: int, new_title: str) -> None:
-    run(["gh", "pr", "edit", str(pr_number), "--title", new_title])
+def gh_pr_set_title(
+    pr_number: int, new_title: str, upstream_repo: Optional[str] = None
+) -> None:
+    cmd = ["gh"]
+    if upstream_repo:
+        cmd.extend(["-R", upstream_repo])
+    cmd.extend(["pr", "edit", str(pr_number), "--title", new_title])
+    run(cmd)
 
 
-def gh_pr_add_reviewers(pr_number: int, reviewers: str) -> None:
+def gh_pr_add_reviewers(
+    pr_number: int, reviewers: str, upstream_repo: Optional[str] = None
+) -> None:
     """Add reviewers to an existing PR."""
-    run(["gh", "pr", "edit", str(pr_number), "--add-reviewer", reviewers])
+    cmd = ["gh"]
+    if upstream_repo:
+        cmd.extend(["-R", upstream_repo])
+    cmd.extend(["pr", "edit", str(pr_number), "--add-reviewer", reviewers])
+    run(cmd)
 
 
-def gh_pr_get_title(pr_number: int) -> str:
+def gh_pr_get_title(pr_number: int, upstream_repo: Optional[str] = None) -> str:
     """Get the title of an existing PR."""
-    cp = run(["gh", "pr", "view", str(pr_number), "--json", "title", "--jq", ".title"])
+    cmd = ["gh"]
+    if upstream_repo:
+        cmd.extend(["-R", upstream_repo])
+    cmd.extend(["pr", "view", str(pr_number), "--json", "title", "--jq", ".title"])
+    cp = run(cmd)
     return cp.stdout.strip()
 
 
@@ -148,6 +218,42 @@ def get_commit_hash(change_id: str) -> str:
     """Get full commit hash for a change ID."""
     cp = run(["jj", "log", "-r", change_id, "-T", "commit_id", "--no-graph"])
     return cp.stdout.strip()
+
+
+def get_fork_username() -> str:
+    """
+    Get the fork username from the git 'origin' remote.
+    Extracts username from GitHub URLs like:
+    - https://github.com/username/repo.git -> username
+    - git@github.com:username/repo.git -> username
+    """
+    try:
+        cp = run(["git", "remote", "get-url", "origin"])
+        origin_url = cp.stdout.strip()
+
+        # Handle HTTPS URLs: https://github.com/username/repo.git
+        if "github.com" in origin_url:
+            if origin_url.startswith("https://github.com/"):
+                path = origin_url[len("https://github.com/") :]
+                username = path.split("/")[0]
+            elif origin_url.startswith("git@github.com:"):
+                path = origin_url[len("git@github.com:") :]
+                username = path.split("/")[0]
+            else:
+                raise ValueError(f"Unrecognized GitHub URL format: {origin_url}")
+
+            # Basic validation
+            if not username or not username.replace("-", "").isalnum():
+                raise ValueError(
+                    f"Invalid username extracted from origin URL: '{username}'"
+                )
+
+            return username
+        else:
+            raise ValueError(f"Origin remote is not a GitHub URL: {origin_url}")
+
+    except subprocess.CalledProcessError as e:
+        raise ValueError(f"Failed to get git origin remote: {e.stderr or str(e)}")
 
 
 def build_stack_block(all_prs: List[int], current: int) -> str:
@@ -212,6 +318,12 @@ def main():
         "--add-reviewer",
         help="Comma-separated list of reviewers to add to the PR (same format as gh pr create/edit).",
     )
+    parser.add_argument(
+        "-R",
+        "--repo",
+        dest="upstream_repo",
+        help="Upstream repository URL (e.g., 'https://github.com/jackblack/runner'). PRs will be created in this repository with head from fork.",
+    )
     args = parser.parse_args()
 
     # Validate we're in a jj repository
@@ -241,6 +353,19 @@ def main():
         return
 
     print(f"Discovered {len(changes)} change(s) in stack: {' '.join(changes)}")
+
+    # Handle fork-to-upstream workflow if -R is specified
+    fork_username = None
+    upstream_repo_url = None
+    if args.upstream_repo:
+        upstream_repo_url = args.upstream_repo
+        try:
+            fork_username = get_fork_username()
+            print(f"Fork detected: will push branches to {fork_username}'s fork")
+            print(f"PRs will be created in upstream repository: {upstream_repo_url}")
+        except ValueError as e:
+            print(f"Error: {e}", file=sys.stderr)
+            sys.exit(1)
 
     # Get repo info for commit links
     repo_name, _ = get_repo_info()
@@ -291,25 +416,35 @@ def main():
 
         # Create or update PR
         try:
-            if gh_pr_exists(branch):
+            if gh_pr_exists(branch, upstream_repo_url, fork_username):
                 print(
                     f"[{change}] PR already exists for branch '{branch}', getting PR number..."
                 )
-                cp = run(
-                    ["gh", "pr", "view", branch, "--json", "number", "--jq", ".number"]
-                )
+                cmd = ["gh"]
+                if upstream_repo_url:
+                    cmd.extend(["-R", upstream_repo_url])
+                cmd.extend(["pr", "view"])
+
+                # Use fork_user:branch format if we're in fork workflow
+                if fork_username and upstream_repo_url:
+                    branch_spec = f"{fork_username}:{branch}"
+                else:
+                    branch_spec = branch
+
+                cmd.extend([branch_spec, "--json", "number", "--jq", ".number"])
+                cp = run(cmd)
                 pr_num = int(cp.stdout.strip())
                 print(f"[{change}] Found existing PR #{pr_num}")
 
                 # Check if title needs updating
-                existing_title = gh_pr_get_title(pr_num)
+                existing_title = gh_pr_get_title(pr_num, upstream_repo_url)
                 if existing_title != title:
-                    gh_pr_set_title(pr_num, title)
+                    gh_pr_set_title(pr_num, title, upstream_repo_url)
                     print(f"[{change}] Updated PR #{pr_num} title")
 
                 # Add reviewers if specified
                 if args.add_reviewer:
-                    gh_pr_add_reviewers(pr_num, args.add_reviewer)
+                    gh_pr_add_reviewers(pr_num, args.add_reviewer, upstream_repo_url)
                     print(f"[{change}] Added reviewers to PR #{pr_num}")
 
                 pr_numbers[change] = pr_num
@@ -317,7 +452,13 @@ def main():
                 # For single change, use commit body directly; for multiple changes we'll update later
                 initial_body = body if len(changes) == 1 else ""
                 pr_num = gh_pr_create(
-                    branch, args.base, title, initial_body, args.add_reviewer
+                    branch,
+                    args.base,
+                    title,
+                    initial_body,
+                    args.add_reviewer,
+                    upstream_repo_url,
+                    fork_username,
                 )
                 print(f"[{change}] Created PR #{pr_num}")
                 pr_numbers[change] = pr_num
@@ -360,9 +501,9 @@ def main():
                     )
 
                 # Check if body needs updating
-                existing_body = gh_pr_get_body(pr_num)
+                existing_body = gh_pr_get_body(pr_num, upstream_repo_url)
                 if existing_body != new_body:
-                    gh_pr_set_body(pr_num, new_body)
+                    gh_pr_set_body(pr_num, new_body, upstream_repo_url)
                     print(f"[{change}] Updated PR #{pr_num} body")
                 else:
                     print(f"[{change}] PR #{pr_num} body already up to date")
