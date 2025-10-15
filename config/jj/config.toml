@@ -42,3 +42,18 @@ fi
 jj rebase -s ${1} -d ${1}- -d ${2}
 jj simplify-parents -r ${1}
 """, ""]
+rm-parent = ["util", "exec", "--", "bash", "-c", """
+set -euo pipefail
+if [ "${1:-}" = "-h" ] || [ "${1:-}" = "--help" ]; then
+  echo "Usage: jj rm-parent <revision> <parent>"
+  echo ""
+  echo "Remove a parent of a revision while keeping other parents."
+  echo ""
+  echo "Arguments:"
+  echo "  <revision>  The revision to modify"
+  echo "  <parent>    The parent revision to remove"
+  exit 0
+fi
+jj rebase -s ${1} -d "${1}- ~ ${2}"
+jj simplify-parents -r ${1}
+""", ""]
