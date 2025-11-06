@@ -1,0 +1,9 @@
+# Claude runtime files (symlinked to ~/.claude)
+# Ignore runtime/temporary data but keep configuration
+claude/debug/
+claude/projects/
+claude/statsig/
+claude/todos/
+claude/shell-snapshots/
+claude/file-history/
+claude/history.jsonl
