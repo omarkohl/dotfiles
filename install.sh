@@ -102,6 +102,12 @@ main() {
         fi
     fi
     
+    # Install Claude user memory
+    info "Installing Claude configuration..."
+    if [[ -d "$DOTFILES_DIR/claude" ]]; then
+        create_symlink "$DOTFILES_DIR/claude" "$HOME/.claude"
+    fi
+
     # Install application configs
     info "Installing application configurations..."
     if [[ -d "$DOTFILES_DIR/config" ]]; then
