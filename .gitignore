@@ -7,3 +7,6 @@ claude/todos/
 claude/shell-snapshots/
 claude/file-history/
 claude/history.jsonl
+claude/.update.lock
+claude/config.json
+claude/ide/
