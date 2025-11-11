@@ -1,0 +1,8 @@
+[settings]
+
+[settings.python]
+compile = true
+
+[tools]
+jj = "latest"
+jjui = "latest"
