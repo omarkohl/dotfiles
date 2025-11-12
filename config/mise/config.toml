@@ -4,5 +4,6 @@
 compile = true
 
 [tools]
+go = "latest"
 jj = "latest"
 jjui = "latest"
