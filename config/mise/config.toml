@@ -5,5 +5,7 @@ compile = true
 
 [tools]
 go = "latest"
+hledger = "latest"
 jj = "latest"
 jjui = "latest"
+uv = "latest"
