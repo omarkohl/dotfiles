@@ -136,6 +136,13 @@ main() {
         warn "Copy \"$HOME/.config/jj/conf.d/local.toml.example\"" \
             "to \"$HOME/.config/jj/conf.d/local.toml\" and set your email"
     fi
+
+    # Check for mise local configuration
+    if [[ -f "$DOTFILES_DIR/config/mise/config.toml" ]]; then
+        info "mise config installed globally"
+        info "For machine-specific tools, create ~/.config/mise/config.local.toml"
+        info "See: https://mise.jdx.dev/configuration.html#config-file-locations-and-merging"
+    fi
     
     info "Dotfiles installation complete!"
     

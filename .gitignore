@@ -10,3 +10,6 @@ claude/history.jsonl
 claude/.update.lock
 claude/config.json
 claude/ide/
+
+# Local machine-specific configuration overrides
+config/mise/config.local.toml
