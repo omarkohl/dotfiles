@@ -36,14 +36,14 @@ backup_if_exists() {
 create_symlink() {
     local source="$1"
     local target="$2"
-    
+
     if [[ ! -e "$source" ]]; then
         error "Source file $source does not exist"
         return 1
     fi
-    
+
     backup_if_exists "$target"
-    
+
     mkdir -p "$(dirname "$target")"
     ln -sf "$source" "$target"
     info "Linked $source -> $target"
@@ -51,11 +51,11 @@ create_symlink() {
 
 main() {
     info "Installing dotfiles from $DOTFILES_DIR"
-    
+
     # Install scripts to ~/.local/bin
     info "Installing scripts..."
     mkdir -p "$HOME/.local/bin"
-    
+
     for script in "$DOTFILES_DIR/bin"/*; do
         if [[ -f "$script" && -x "$script" ]]; then
             info "Installing script ${script}"
@@ -63,35 +63,35 @@ main() {
             create_symlink "$script" "$HOME/.local/bin/$script_name"
         fi
     done
-    
+
     # Install shell configs
     info "Installing shell configurations..."
-    
+
     # Example: if you have shell/bashrc
     if [[ -f "$DOTFILES_DIR/shell/bashrc" ]]; then
         create_symlink "$DOTFILES_DIR/shell/bashrc" "$HOME/.bashrc"
     fi
-    
+
     # Example: if you have shell/zshrc
     if [[ -f "$DOTFILES_DIR/shell/zshrc" ]]; then
         create_symlink "$DOTFILES_DIR/shell/zshrc" "$HOME/.zshrc"
     fi
-    
+
     # Install git config
     info "Installing git configuration..."
     if [[ -f "$DOTFILES_DIR/git/gitconfig" ]]; then
         create_symlink "$DOTFILES_DIR/git/gitconfig" "$HOME/.gitconfig"
     fi
-    
+
     # Install vim configuration
     info "Installing vim configuration..."
     if [[ -f "$DOTFILES_DIR/config/vim/vimrc" ]]; then
         # Create vim config directory symlink
         create_symlink "$DOTFILES_DIR/config/vim" "$HOME/.config/vim"
-        
+
         # Create traditional vim config symlink for compatibility
         create_symlink "$DOTFILES_DIR/config/vim/vim_vimrc" "$HOME/.vimrc"
-        
+
         # Install vim-plug if not present
         if [[ ! -f "$HOME/.vim/autoload/plug.vim" ]]; then
             info "Installing vim-plug..."
@@ -101,7 +101,7 @@ main() {
             info "vim-plug installed successfully"
         fi
     fi
-    
+
     # Install Claude user memory
     info "Installing Claude configuration..."
     if [[ -d "$DOTFILES_DIR/claude" ]]; then
@@ -121,14 +121,14 @@ main() {
             fi
         done
     fi
-    
+
     # Check if ~/.local/bin is in PATH
     if [[ ":$PATH:" != *":$HOME/.local/bin:"* ]]; then
-        warn "~/.local/bin is not in your PATH"
+        warn "$HOME/.local/bin is not in your PATH"
         warn "Add this to your shell config:"
         warn "export PATH=\"\$HOME/.local/bin:\$PATH\""
     fi
-    
+
     # Check for jj email configuration
     if [[ -f "$DOTFILES_DIR/config/jj/config.toml" ]] && \
             [[ ! -f "$HOME/.config/jj/conf.d/local.toml" ]]; then
@@ -143,9 +143,9 @@ main() {
         info "For machine-specific tools, create ~/.config/mise/config.local.toml"
         info "See: https://mise.jdx.dev/configuration.html#config-file-locations-and-merging"
     fi
-    
+
     info "Dotfiles installation complete!"
-    
+
     if [[ -d "$BACKUP_DIR" ]]; then
         info "Backups created in $BACKUP_DIR"
     fi
