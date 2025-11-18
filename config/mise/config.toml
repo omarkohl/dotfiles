@@ -7,4 +7,5 @@ compile = true
 go = "latest"
 jj = "latest"
 jjui = "latest"
+shellcheck = "latest"
 uv = "latest"
