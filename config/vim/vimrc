@@ -126,7 +126,7 @@ if has('clipboard')
     elseif has('unnamed')
         set clipboard=unnamed          " Use * register (X11 primary selection)
     endif
-    
+
     " Additional explicit clipboard shortcuts (these always work)
     vnoremap <leader>c "+y            " Copy selection to clipboard
     nnoremap <leader>c "+yy           " Copy current line to clipboard
@@ -138,7 +138,7 @@ else
     " Copy to system clipboard
     vnoremap <leader>c :w !xclip -selection clipboard<CR><CR>
     nnoremap <leader>c :.w !xclip -selection clipboard<CR><CR>
-    
+
     " Paste from system clipboard
     nnoremap <leader>v :r !xclip -selection clipboard -o<CR>
     inoremap <C-v> <Esc>:r !xclip -selection clipboard -o<CR>a
@@ -207,9 +207,9 @@ set splitright
 " -------------
 augroup configgroup
     autocmd!
-    " Remove trailing whitespace on save
-    autocmd BufWritePre * %s/\s\+$//e
-    
+    " Remove trailing whitespace on save (preserving cursor position)
+    autocmd BufWritePre * let save_view = winsaveview() | %s/\s\+$//e | call winrestview(save_view)
+
     " Set specific settings for different file types
     autocmd FileType yaml setlocal ts=2 sts=2 sw=2 expandtab
     autocmd FileType json setlocal ts=2 sts=2 sw=2 expandtab
