@@ -1,0 +1,6 @@
+/cache/
+/plugins/cache/
+plugins/installed_plugins.json
+plugins/known_marketplaces.json
+settings.json
+stats-cache.json
