@@ -1,6 +1,9 @@
-/cache/
-/plugins/cache/
 .credentials.json
+/cache/
+/plans/
+/plugins/cache/
+/statusline.sh
+/telemetry/
 plugins/installed_plugins.json
 plugins/installed_plugins_v2.json
 plugins/known_marketplaces.json
