@@ -18,6 +18,10 @@ concat(
 )
 '''
 
+[template-aliases]
+# Display author timestamp instead of committer timestamp
+'commit_timestamp(commit)' = 'commit.author().timestamp()'
+
 [revsets]
 log = "present(@) | ancestors(immutable_heads().., 7) | present(trunk())"
 
