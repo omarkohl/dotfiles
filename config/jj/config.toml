@@ -31,6 +31,7 @@ private-commits = "description(glob:'private:*')"
 [aliases]
 # advance 'main'
 adm = ["bookmark", "set", "main", "-r", "main+"]
+
 add-parent = ["util", "exec", "--", "bash", "-c", """
 set -euo pipefail
 if [ "${1:-}" = "-h" ] || [ "${1:-}" = "--help" ]; then
@@ -46,6 +47,7 @@ fi
 jj rebase -s ${1} -d ${1}- -d ${2}
 jj simplify-parents -r ${1}
 """, ""]
+
 rm-parent = ["util", "exec", "--", "bash", "-c", """
 set -euo pipefail
 if [ "${1:-}" = "-h" ] || [ "${1:-}" = "--help" ]; then
@@ -60,4 +62,21 @@ if [ "${1:-}" = "-h" ] || [ "${1:-}" = "--help" ]; then
 fi
 jj rebase -s ${1} -d "${1}- ~ ${2}"
 jj simplify-parents -r ${1}
+""", ""]
+
+# fetch and rebase
+fr = ["util", "exec", "--", "bash", "-c", """
+set -euo pipefail
+if [ "${1:-}" = "-h" ] || [ "${1:-}" = "--help" ]; then
+  echo "Usage: jj fr [<bookmark>]"
+  echo ""
+  echo "fetch everything and then rebase on top of <bookmark>"
+  echo ""
+  echo "Arguments:"
+  echo "  <bookmark>  The bookmark to rebase on (defaults to 'main')"
+  exit 0
+fi
+BOOKMARK="${1:-main}"
+jj git fetch
+jj rebase -o "${BOOKMARK}"
 """, ""]
