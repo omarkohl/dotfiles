@@ -7,5 +7,6 @@
 /statusline.sh
 /tasks/
 /telemetry/
+mcp-needs-auth-cache.json
 settings.json
 stats-cache.json
