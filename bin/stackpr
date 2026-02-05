@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 import argparse
+import difflib
 import subprocess
 import sys
 from typing import List, Tuple, Dict, Optional
@@ -271,6 +272,99 @@ def build_stack_block(all_prs: List[int], current: int) -> str:
     return "\n".join(lines)
 
 
+MAX_DIFF_LINES = 300
+
+
+def get_remote_bookmark_commit(branch: str) -> Optional[str]:
+    """Get the commit hash of the remote bookmark, or None if it doesn't exist."""
+    try:
+        cp = run(
+            ["jj", "log", "-r", f"{branch}@origin", "-T", "commit_id", "--no-graph"],
+            capture=True,
+        )
+        return cp.stdout.strip() or None
+    except subprocess.CalledProcessError:
+        return None
+
+
+def get_remote_bookmark_description(branch: str) -> str:
+    """Get the description of the remote bookmark."""
+    cp = run(
+        ["jj", "log", "-r", f"{branch}@origin", "-T", "description", "--no-graph"],
+        capture=True,
+    )
+    return cp.stdout.strip()
+
+
+def get_code_diff(old_commit: str, new_change: str) -> str:
+    """Get code diff between old git commit and new jj change."""
+    cp = run(
+        ["jj", "diff", "--git", "--from", old_commit, "--to", new_change], capture=True
+    )
+    return cp.stdout
+
+
+def create_text_diff(
+    old_text: str, new_text: str, from_label: str = "old", to_label: str = "new"
+) -> str:
+    """Create a unified diff between two text strings."""
+    old_lines = old_text.splitlines(keepends=True)
+    new_lines = new_text.splitlines(keepends=True)
+    # Ensure lines end with newline for proper diff formatting
+    if old_lines and not old_lines[-1].endswith("\n"):
+        old_lines[-1] += "\n"
+    if new_lines and not new_lines[-1].endswith("\n"):
+        new_lines[-1] += "\n"
+    diff = difflib.unified_diff(
+        old_lines, new_lines, fromfile=from_label, tofile=to_label
+    )
+    return "".join(diff)
+
+
+def gh_pr_comment(
+    pr_number: int, body: str, upstream_repo: Optional[str] = None
+) -> None:
+    """Post a comment to a PR."""
+    cmd = ["gh"]
+    if upstream_repo:
+        cmd.extend(["-R", upstream_repo])
+    cmd.extend(["pr", "comment", str(pr_number), "--body", body])
+    run(cmd)
+
+
+def build_diff_comment(code_diff: str, message_diff: str) -> str:
+    """Build a PR comment with code and message diffs."""
+    sections = []
+
+    code_lines = code_diff.splitlines() if code_diff.strip() else []
+    message_lines = message_diff.splitlines() if message_diff.strip() else []
+
+    has_code_changes = len(code_lines) > 0
+    has_message_changes = len(message_lines) > 0
+
+    if not has_code_changes and not has_message_changes:
+        return "### Changes since last push\n\nNo content changes since last push."
+
+    sections.append("### Changes since last push")
+
+    if has_code_changes:
+        if len(code_lines) > MAX_DIFF_LINES:
+            sections.append(
+                f"\n**Code changes:** Diff too large to display ({len(code_lines)} lines)"
+            )
+        else:
+            sections.append(f"\n```diff\n{code_diff.rstrip()}\n```")
+
+    if has_message_changes:
+        sections.append("\n#### Commit message changes")
+        if len(message_lines) > MAX_DIFF_LINES:
+            sections.append(f"\nDiff too large to display ({len(message_lines)} lines)")
+        else:
+            sections.append(f"\n```diff\n{message_diff.rstrip()}\n```")
+
+    return "\n".join(sections)
+
+
 def build_stacked_pr_body(
     change_id: str, pr_number: int, all_prs: List[int], commit_body: str, repo_name: str
 ) -> str:
@@ -396,6 +490,15 @@ def main():
             pr_numbers[change] = -1  # placeholder
             continue
 
+        # Check if remote bookmark exists (to calculate diff for existing PRs)
+        old_remote_commit = get_remote_bookmark_commit(branch)
+        old_commit_message = None
+        if old_remote_commit:
+            old_commit_message = get_remote_bookmark_description(branch)
+            print(
+                f"[{change}] Found existing remote bookmark (commit {old_remote_commit[:7]})"
+            )
+
         # Create bookmark/branch and push
         try:
             # Create bookmark if it doesn't exist
@@ -446,6 +549,24 @@ def main():
                 if args.add_reviewer:
                     gh_pr_add_reviewers(pr_num, args.add_reviewer, upstream_repo_url)
                     print(f"[{change}] Added reviewers to PR #{pr_num}")
+
+                # Post diff comment if we have the old remote commit
+                if old_remote_commit:
+                    code_diff = get_code_diff(old_remote_commit, change)
+                    # Get full description for message diff
+                    cp = run(
+                        ["jj", "log", "-r", change, "-T", "description", "--no-graph"]
+                    )
+                    new_full_description = cp.stdout.strip()
+                    message_diff = create_text_diff(
+                        old_commit_message or "",
+                        new_full_description,
+                        "old/commit-message",
+                        "new/commit-message",
+                    )
+                    comment_body = build_diff_comment(code_diff, message_diff)
+                    gh_pr_comment(pr_num, comment_body, upstream_repo_url)
+                    print(f"[{change}] Posted diff comment to PR #{pr_num}")
 
                 pr_numbers[change] = pr_num
             else:
