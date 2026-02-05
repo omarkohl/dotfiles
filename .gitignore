@@ -13,3 +13,5 @@ claude/ide/
 
 # Local machine-specific configuration overrides
 config/mise/config.local.toml
+
+__pycache__
