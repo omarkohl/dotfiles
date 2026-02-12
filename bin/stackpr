@@ -299,7 +299,8 @@ def get_remote_bookmark_description(branch: str) -> str:
 def get_code_diff(old_commit: str, new_change: str) -> str:
     """Get code diff between old git commit and new jj change."""
     cp = run(
-        ["jj", "diff", "--git", "--from", old_commit, "--to", new_change], capture=True
+        ["jj", "interdiff", "--git", "--from", old_commit, "--to", new_change],
+        capture=True,
     )
     return cp.stdout
 
