@@ -525,9 +525,28 @@ def main():
 
         if args.dry_run:
             print(f"[{change}] DRY-RUN: jj git push --allow-new -b {branch}")
-            print(
-                f"[{change}] DRY-RUN: gh pr create -H {branch} -B {args.base} -t '{title}' -b <body>"
-            )
+            old_remote_commit = get_remote_bookmark_commit(branch)
+            if old_remote_commit:
+                old_commit_message = get_remote_bookmark_description(branch)
+                print(
+                    f"[{change}] DRY-RUN: PR already exists (remote bookmark at {old_remote_commit[:7]})"
+                )
+                code_diff = get_code_diff(old_remote_commit, change)
+                cp = run(["jj", "log", "-r", change, "-T", "description", "--no-graph"])
+                new_full_description = cp.stdout.strip()
+                message_diff = create_text_diff(
+                    old_commit_message or "",
+                    new_full_description,
+                    "old/commit-message",
+                    "new/commit-message",
+                )
+                comment_body = build_diff_comment(code_diff, message_diff)
+                print(f"[{change}] DRY-RUN: Would post diff comment to PR:")
+                print(comment_body)
+            else:
+                print(
+                    f"[{change}] DRY-RUN: gh pr create -H {branch} -B {args.base} -t '{title}' -b <body>"
+                )
             branches[change] = branch
             pr_numbers[change] = -1  # placeholder
             continue
