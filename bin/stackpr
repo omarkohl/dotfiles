@@ -272,7 +272,41 @@ def build_stack_block(all_prs: List[int], current: int) -> str:
     return "\n".join(lines)
 
 
-MAX_DIFF_LINES = 300
+COLLAPSE_THRESHOLD = 20
+MAX_COMMENT_CHARS = 60000
+
+
+def parse_git_diff(diff_text: str) -> List[Tuple[str, str]]:
+    """Parse a git diff into per-file chunks. Returns list of (filename, diff_chunk)."""
+    files = []
+    current_file = None
+    current_lines: List[str] = []
+
+    for line in diff_text.splitlines(keepends=True):
+        if line.startswith("diff --git "):
+            if current_file is not None:
+                files.append((current_file, "".join(current_lines)))
+            parts = line.split(" b/", 1)
+            current_file = parts[1].rstrip("\n") if len(parts) == 2 else "unknown"
+            current_lines = [line]
+        elif current_file is not None:
+            current_lines.append(line)
+
+    if current_file is not None:
+        files.append((current_file, "".join(current_lines)))
+
+    return files
+
+
+def diff_stats(chunk: str) -> Tuple[int, int]:
+    """Count added and removed lines in a diff chunk."""
+    added = removed = 0
+    for line in chunk.splitlines():
+        if line.startswith("+") and not line.startswith("+++"):
+            added += 1
+        elif line.startswith("-") and not line.startswith("---"):
+            removed += 1
+    return added, removed
 
 
 def get_remote_bookmark_commit(branch: str) -> Optional[str]:
@@ -334,36 +368,43 @@ def gh_pr_comment(
 
 
 def build_diff_comment(code_diff: str, message_diff: str) -> str:
-    """Build a PR comment with code and message diffs."""
-    sections = []
+    """Build a PR comment with per-file collapsible code diffs."""
+    files = parse_git_diff(code_diff) if code_diff.strip() else []
+    has_message_changes = bool(message_diff.strip())
 
-    code_lines = code_diff.splitlines() if code_diff.strip() else []
-    message_lines = message_diff.splitlines() if message_diff.strip() else []
-
-    has_code_changes = len(code_lines) > 0
-    has_message_changes = len(message_lines) > 0
-
-    if not has_code_changes and not has_message_changes:
+    if not files and not has_message_changes:
         return "### Changes since last push\n\nNo content changes since last push."
 
-    sections.append("### Changes since last push")
+    sections = ["### Changes since last push"]
 
-    if has_code_changes:
-        if len(code_lines) > MAX_DIFF_LINES:
-            sections.append(
-                f"\n**Code changes:** Diff too large to display ({len(code_lines)} lines)"
-            )
-        else:
-            sections.append(f"\n```diff\n{code_diff.rstrip()}\n```")
+    total_code_lines = sum(len(chunk.splitlines()) for _, chunk in files)
+    expand = total_code_lines <= COLLAPSE_THRESHOLD
+
+    for filename, chunk in files:
+        added, removed = diff_stats(chunk)
+        open_attr = " open" if expand else ""
+        sections.append(
+            f"\n<details{open_attr}>\n<summary><code>{filename}</code> (+{added}, -{removed})</summary>\n"
+            f"\n```diff\n{chunk.rstrip()}\n```\n"
+            f"\n</details>"
+        )
 
     if has_message_changes:
-        sections.append("\n#### Commit message changes")
-        if len(message_lines) > MAX_DIFF_LINES:
-            sections.append(f"\nDiff too large to display ({len(message_lines)} lines)")
-        else:
-            sections.append(f"\n```diff\n{message_diff.rstrip()}\n```")
+        message_lines = message_diff.splitlines()
+        open_attr = " open" if len(message_lines) <= COLLAPSE_THRESHOLD else ""
+        sections.append(
+            f"\n<details{open_attr}>\n<summary>Commit message changes</summary>\n"
+            f"\n```diff\n{message_diff.rstrip()}\n```\n"
+            f"\n</details>"
+        )
 
-    return "\n".join(sections)
+    comment = "\n".join(sections)
+    if len(comment) > MAX_COMMENT_CHARS:
+        return (
+            "### Changes since last push\n\n"
+            f"Diff too large to display ({len(comment)} characters, {len(files)} files)."
+        )
+    return comment
 
 
 def build_stacked_pr_body(
