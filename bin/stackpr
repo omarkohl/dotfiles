@@ -435,47 +435,15 @@ def build_stacked_pr_body(
     return "\n".join(lines)
 
 
-def main():
-    parser = argparse.ArgumentParser(
-        description="Create GitHub PRs for all jj changes in BASE..CHANGE_ID as a stacked series."
-    )
-    parser.add_argument(
-        "change_id", help="Top change ID to build PRs for (e.g., rktqquxy)."
-    )
-    parser.add_argument(
-        "-B", "--base", default="main", help="Base branch to target (default: main)."
-    )
-    parser.add_argument(
-        "--dry-run",
-        action="store_true",
-        help="Show what would happen without pushing/creating PRs.",
-    )
-    parser.add_argument(
-        "--add-reviewer",
-        help="Comma-separated list of reviewers to add to the PR (same format as gh pr create/edit).",
-    )
-    parser.add_argument(
-        "-R",
-        "--repo",
-        dest="upstream_repo",
-        help="Upstream repository URL (e.g., 'https://github.com/jackblack/runner'). PRs will be created in this repository with head from fork.",
-    )
-    args = parser.parse_args()
-
-    # Validate we're in a jj repository
+def process_stack(change_id: str, args) -> None:
+    """Process a single change-id stack independently."""
     try:
-        run(["jj", "status"], capture=True)
-    except subprocess.CalledProcessError:
-        print("Error: Not in a jj repository or jj not available.", file=sys.stderr)
-        sys.exit(1)
-
-    try:
-        changes = jj_changes_in_range(args.base, args.change_id)
+        changes = jj_changes_in_range(args.base, change_id)
     except subprocess.CalledProcessError as e:
         error_msg = e.stderr or str(e)
         if "No such revision" in error_msg:
             print(
-                f"Error: Change ID '{args.change_id}' not found. Make sure it's a valid change ID.",
+                f"Error: Change ID '{change_id}' not found. Make sure it's a valid change ID.",
                 file=sys.stderr,
             )
         else:
@@ -483,9 +451,7 @@ def main():
         sys.exit(1)
 
     if not changes:
-        print(
-            f"No changes found in range {args.base}..{args.change_id}. Nothing to do."
-        )
+        print(f"No changes found in range {args.base}..{change_id}. Nothing to do.")
         return
 
     print(f"Discovered {len(changes)} change(s) in stack: {' '.join(changes)}")
@@ -706,6 +672,48 @@ def main():
             print(f"{change} -> branch '{branch}' -> PR #{prn}")
         else:
             print(f"{change} -> branch '{branch}' -> (no PR created in dry-run)")
+
+
+def main():
+    parser = argparse.ArgumentParser(
+        description="Create GitHub PRs for all jj changes in BASE..CHANGE_ID as a stacked series."
+    )
+    parser.add_argument(
+        "change_ids",
+        nargs="+",
+        help="One or more top change IDs to build PRs for (e.g., rktqquxy). Each is processed independently.",
+    )
+    parser.add_argument(
+        "-B", "--base", default="main", help="Base branch to target (default: main)."
+    )
+    parser.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="Show what would happen without pushing/creating PRs.",
+    )
+    parser.add_argument(
+        "--add-reviewer",
+        help="Comma-separated list of reviewers to add to the PR (same format as gh pr create/edit).",
+    )
+    parser.add_argument(
+        "-R",
+        "--repo",
+        dest="upstream_repo",
+        help="Upstream repository URL (e.g., 'https://github.com/jackblack/runner'). PRs will be created in this repository with head from fork.",
+    )
+    args = parser.parse_args()
+
+    # Validate we're in a jj repository
+    try:
+        run(["jj", "status"], capture=True)
+    except subprocess.CalledProcessError:
+        print("Error: Not in a jj repository or jj not available.", file=sys.stderr)
+        sys.exit(1)
+
+    for i, change_id in enumerate(args.change_ids):
+        if i > 0:
+            print(f"\n{'=' * 60}\n")
+        process_stack(change_id, args)
 
 
 if __name__ == "__main__":
