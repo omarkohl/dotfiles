@@ -373,7 +373,7 @@ def build_diff_comment(code_diff: str, message_diff: str) -> str:
     has_message_changes = bool(message_diff.strip())
 
     if not files and not has_message_changes:
-        return "### Changes since last push\n\nNo content changes since last push."
+        return "### Changes since last push\n\n**None.** Probably just a rebase because the PR branch was out of date."
 
     sections = ["### Changes since last push"]
 
