@@ -466,7 +466,7 @@ def build_stacked_pr_body(
     return "\n".join(lines)
 
 
-def process_stack(change_id: str, args) -> None:
+def process_stack(change_id: str, args, newly_created_prs: set) -> None:
     """Process a single change-id stack independently."""
     try:
         changes = jj_changes_in_range(args.base, change_id)
@@ -523,7 +523,8 @@ def process_stack(change_id: str, args) -> None:
         if args.dry_run:
             print(f"[{change}] DRY-RUN: jj git push --allow-new -b {branch}")
             old_remote_commit = get_remote_bookmark_commit(branch)
-            if old_remote_commit:
+            pr_exists = gh_pr_exists(branch, upstream_repo_url, fork_username)
+            if pr_exists and old_remote_commit:
                 old_commit_message = get_remote_bookmark_description(branch)
                 print(
                     f"[{change}] DRY-RUN: PR already exists (remote bookmark at {old_remote_commit[:7]})"
@@ -548,6 +549,10 @@ def process_stack(change_id: str, args) -> None:
                 )
                 print(f"[{change}] DRY-RUN: Would post diff comment to PR:")
                 print(comment_body)
+            elif pr_exists:
+                print(
+                    f"[{change}] DRY-RUN: PR already exists, will update"
+                )
             else:
                 print(
                     f"[{change}] DRY-RUN: gh pr create -H {branch} -B {args.base} -t '{title}' -b <body>"
@@ -616,8 +621,8 @@ def process_stack(change_id: str, args) -> None:
                     gh_pr_add_reviewers(pr_num, args.add_reviewer, upstream_repo_url)
                     print(f"[{change}] Added reviewers to PR #{pr_num}")
 
-                # Post diff comment if we have the old remote commit
-                if old_remote_commit:
+                # Post diff comment only when updating, not on first creation
+                if old_remote_commit and pr_num not in newly_created_prs:
                     code_diff = get_code_diff(old_remote_commit, change)
                     # Get full description for message diff
                     cp = run(
@@ -655,6 +660,7 @@ def process_stack(change_id: str, args) -> None:
                     upstream_repo_url,
                     fork_username,
                 )
+                newly_created_prs.add(pr_num)
                 print(f"[{change}] Created PR #{pr_num}")
                 pr_numbers[change] = pr_num
         except subprocess.CalledProcessError as e:
@@ -757,10 +763,11 @@ def main():
         print("Error: Not in a jj repository or jj not available.", file=sys.stderr)
         sys.exit(1)
 
+    newly_created_prs: set = set()
     for i, change_id in enumerate(args.change_ids):
         if i > 0:
             print(f"\n{'=' * 60}\n")
-        process_stack(change_id, args)
+        process_stack(change_id, args, newly_created_prs)
 
 
 if __name__ == "__main__":
