@@ -367,13 +367,41 @@ def gh_pr_comment(
     run(cmd)
 
 
-def build_diff_comment(code_diff: str, message_diff: str) -> str:
+def _range_diff_footer(
+    repo_name: str, base_branch: str, old_commit: str, new_commit: str
+) -> str:
+    """Build a footer with GitHub compare link and local range-diff command."""
+    old_short = old_commit[:7]
+    new_short = new_commit[:7]
+    compare_url = f"https://github.com/{repo_name}/compare/{old_commit}..{new_commit}"
+    return (
+        f"\n---\n<sub>[Compare on GitHub]({compare_url})[^1] · Local range-diff: `git range-diff {base_branch} {old_short} {new_short}`</sub>"
+        f"\n\n[^1]: The GitHub compare view may include unrelated changes introduced by rebases, as GitHub does not currently support range-diff."
+    )
+
+
+def build_diff_comment(
+    code_diff: str,
+    message_diff: str,
+    repo_name: str = "",
+    base_branch: str = "",
+    old_commit: str = "",
+    new_commit: str = "",
+) -> str:
     """Build a PR comment with per-file collapsible code diffs."""
     files = parse_git_diff(code_diff) if code_diff.strip() else []
     has_message_changes = bool(message_diff.strip())
+    footer = (
+        _range_diff_footer(repo_name, base_branch, old_commit, new_commit)
+        if old_commit and new_commit and repo_name
+        else ""
+    )
 
     if not files and not has_message_changes:
-        return "### Changes since last push\n\n**None.** Probably just a rebase because the PR branch was out of date."
+        return (
+            "### Changes since last push\n\n**None.** Probably just a rebase because the PR branch was out of date.\n"
+            + footer
+        )
 
     sections = ["### Changes since last push"]
 
@@ -397,6 +425,9 @@ def build_diff_comment(code_diff: str, message_diff: str) -> str:
             f"\n```diff\n{message_diff.rstrip()}\n```\n"
             f"\n</details>"
         )
+
+    if footer:
+        sections.append(footer)
 
     comment = "\n".join(sections)
     if len(comment) > MAX_COMMENT_CHARS:
@@ -506,7 +537,15 @@ def process_stack(change_id: str, args) -> None:
                     "old/commit-message",
                     "new/commit-message",
                 )
-                comment_body = build_diff_comment(code_diff, message_diff)
+                new_commit = get_commit_hash(change)
+                comment_body = build_diff_comment(
+                    code_diff,
+                    message_diff,
+                    repo_name,
+                    args.base,
+                    old_remote_commit,
+                    new_commit,
+                )
                 print(f"[{change}] DRY-RUN: Would post diff comment to PR:")
                 print(comment_body)
             else:
@@ -591,7 +630,15 @@ def process_stack(change_id: str, args) -> None:
                         "old/commit-message",
                         "new/commit-message",
                     )
-                    comment_body = build_diff_comment(code_diff, message_diff)
+                    new_commit = get_commit_hash(change)
+                    comment_body = build_diff_comment(
+                        code_diff,
+                        message_diff,
+                        repo_name,
+                        args.base,
+                        old_remote_commit,
+                        new_commit,
+                    )
                     gh_pr_comment(pr_num, comment_body, upstream_repo_url)
                     print(f"[{change}] Posted diff comment to PR #{pr_num}")
 
