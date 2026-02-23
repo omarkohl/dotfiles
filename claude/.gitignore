@@ -1,10 +1,11 @@
 .credentials.json
+/backups/
 /cache/
 /paste-cache/
 /plans/
 /plugins/
 /statusline.sh
+/tasks/
 /telemetry/
 settings.json
 stats-cache.json
-/tasks/
