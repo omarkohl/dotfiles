@@ -1,6 +1,5 @@
 #!/usr/bin/env python3
 import argparse
-import difflib
 import subprocess
 import sys
 from typing import List, Tuple, Dict, Optional
@@ -321,15 +320,6 @@ def get_remote_bookmark_commit(branch: str) -> Optional[str]:
         return None
 
 
-def get_remote_bookmark_description(branch: str) -> str:
-    """Get the description of the remote bookmark."""
-    cp = run(
-        ["jj", "log", "-r", f"{branch}@origin", "-T", "description", "--no-graph"],
-        capture=True,
-    )
-    return cp.stdout.strip()
-
-
 def get_code_diff(old_commit: str, new_change: str) -> str:
     """Get code diff between old git commit and new jj change."""
     cp = run(
@@ -337,23 +327,6 @@ def get_code_diff(old_commit: str, new_change: str) -> str:
         capture=True,
     )
     return cp.stdout
-
-
-def create_text_diff(
-    old_text: str, new_text: str, from_label: str = "old", to_label: str = "new"
-) -> str:
-    """Create a unified diff between two text strings."""
-    old_lines = old_text.splitlines(keepends=True)
-    new_lines = new_text.splitlines(keepends=True)
-    # Ensure lines end with newline for proper diff formatting
-    if old_lines and not old_lines[-1].endswith("\n"):
-        old_lines[-1] += "\n"
-    if new_lines and not new_lines[-1].endswith("\n"):
-        new_lines[-1] += "\n"
-    diff = difflib.unified_diff(
-        old_lines, new_lines, fromfile=from_label, tofile=to_label
-    )
-    return "".join(diff)
 
 
 def gh_pr_comment(
@@ -382,7 +355,6 @@ def _range_diff_footer(
 
 def build_diff_comment(
     code_diff: str,
-    message_diff: str,
     repo_name: str = "",
     base_branch: str = "",
     old_commit: str = "",
@@ -390,14 +362,13 @@ def build_diff_comment(
 ) -> str:
     """Build a PR comment with per-file collapsible code diffs."""
     files = parse_git_diff(code_diff) if code_diff.strip() else []
-    has_message_changes = bool(message_diff.strip())
     footer = (
         _range_diff_footer(repo_name, base_branch, old_commit, new_commit)
         if old_commit and new_commit and repo_name
         else ""
     )
 
-    if not files and not has_message_changes:
+    if not files:
         return (
             "### Changes since last push\n\n**None.** Probably just a rebase because the PR branch was out of date.\n"
             + footer
@@ -414,15 +385,6 @@ def build_diff_comment(
         sections.append(
             f"\n<details{open_attr}>\n<summary><code>{filename}</code> (+{added}, -{removed})</summary>\n"
             f"\n```diff\n{chunk.rstrip()}\n```\n"
-            f"\n</details>"
-        )
-
-    if has_message_changes:
-        message_lines = message_diff.splitlines()
-        open_attr = " open" if len(message_lines) <= COLLAPSE_THRESHOLD else ""
-        sections.append(
-            f"\n<details{open_attr}>\n<summary>Commit message changes</summary>\n"
-            f"\n```diff\n{message_diff.rstrip()}\n```\n"
             f"\n</details>"
         )
 
@@ -525,23 +487,13 @@ def process_stack(change_id: str, args, newly_created_prs: set) -> None:
             old_remote_commit = get_remote_bookmark_commit(branch)
             pr_exists = gh_pr_exists(branch, upstream_repo_url, fork_username)
             if pr_exists and old_remote_commit:
-                old_commit_message = get_remote_bookmark_description(branch)
                 print(
                     f"[{change}] DRY-RUN: PR already exists (remote bookmark at {old_remote_commit[:7]})"
                 )
                 code_diff = get_code_diff(old_remote_commit, change)
-                cp = run(["jj", "log", "-r", change, "-T", "description", "--no-graph"])
-                new_full_description = cp.stdout.strip()
-                message_diff = create_text_diff(
-                    old_commit_message or "",
-                    new_full_description,
-                    "old/commit-message",
-                    "new/commit-message",
-                )
                 new_commit = get_commit_hash(change)
                 comment_body = build_diff_comment(
                     code_diff,
-                    message_diff,
                     repo_name,
                     args.base,
                     old_remote_commit,
@@ -550,9 +502,7 @@ def process_stack(change_id: str, args, newly_created_prs: set) -> None:
                 print(f"[{change}] DRY-RUN: Would post diff comment to PR:")
                 print(comment_body)
             elif pr_exists:
-                print(
-                    f"[{change}] DRY-RUN: PR already exists, will update"
-                )
+                print(f"[{change}] DRY-RUN: PR already exists, will update")
             else:
                 print(
                     f"[{change}] DRY-RUN: gh pr create -H {branch} -B {args.base} -t '{title}' -b <body>"
@@ -563,9 +513,7 @@ def process_stack(change_id: str, args, newly_created_prs: set) -> None:
 
         # Check if remote bookmark exists (to calculate diff for existing PRs)
         old_remote_commit = get_remote_bookmark_commit(branch)
-        old_commit_message = None
         if old_remote_commit:
-            old_commit_message = get_remote_bookmark_description(branch)
             print(
                 f"[{change}] Found existing remote bookmark (commit {old_remote_commit[:7]})"
             )
@@ -624,21 +572,9 @@ def process_stack(change_id: str, args, newly_created_prs: set) -> None:
                 # Post diff comment only when updating, not on first creation
                 if old_remote_commit and pr_num not in newly_created_prs:
                     code_diff = get_code_diff(old_remote_commit, change)
-                    # Get full description for message diff
-                    cp = run(
-                        ["jj", "log", "-r", change, "-T", "description", "--no-graph"]
-                    )
-                    new_full_description = cp.stdout.strip()
-                    message_diff = create_text_diff(
-                        old_commit_message or "",
-                        new_full_description,
-                        "old/commit-message",
-                        "new/commit-message",
-                    )
                     new_commit = get_commit_hash(change)
                     comment_body = build_diff_comment(
                         code_diff,
-                        message_diff,
                         repo_name,
                         args.base,
                         old_remote_commit,
