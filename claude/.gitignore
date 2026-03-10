@@ -8,5 +8,6 @@
 /tasks/
 /telemetry/
 mcp-needs-auth-cache.json
+policy-limits.json
 settings.json
 stats-cache.json
