@@ -1,7 +1,5 @@
 [settings]
 
-[settings.python]
-compile = true
 
 [tools]
 go = "latest"
@@ -10,3 +8,4 @@ jjui = "latest"
 shellcheck = "latest"
 uv = "latest"
 claude = "latest"
+python = "latest"
