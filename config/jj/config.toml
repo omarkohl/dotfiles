@@ -74,10 +74,10 @@ if [ "${1:-}" = "-h" ] || [ "${1:-}" = "--help" ]; then
   echo "fetch everything and then rebase on top of <bookmark>"
   echo ""
   echo "Arguments:"
-  echo "  <bookmark>  The bookmark to rebase on (defaults to 'main')"
+  echo "  <bookmark>  The bookmark to rebase on (defaults to 'trunk()')"
   exit 0
 fi
-BOOKMARK="${1:-main}"
+BOOKMARK="${1:-trunk()}"
 jj git fetch
 jj rebase -o "${BOOKMARK}"
 """, ""]
