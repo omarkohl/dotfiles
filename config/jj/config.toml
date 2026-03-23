@@ -24,6 +24,7 @@ concat(
 
 [revsets]
 log = "present(@) | ancestors(immutable_heads().., 7) | present(trunk())"
+bookmark-advance-to = "@-"
 
 [git]
 # Prevent pushing work in progress or anything explicitly labeled "private"
