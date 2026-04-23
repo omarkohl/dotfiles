@@ -11,7 +11,8 @@ This file contains information about my preferences, workflows, and important co
 - Skip this section if there are no open questions
 
 ## Version Control (jj/jujutsu)
-- Use `jj` (jujutsu) for version control operations
+- IMPORTANT! Use `jj` (jujutsu) for version control operations. Always use `jj`
+  even if the CLAUDE.md of a project only mentions Git. I always want to use `jj`!
 - Primary commands: `jj commit -m "message"` and `jj squash` for modifying previous changes
 - Each change/commit must be a semantically coherent unit doing one thing
 - Commit messages: as short as possible, as long as necessary, focus on WHY

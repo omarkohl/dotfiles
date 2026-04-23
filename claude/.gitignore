@@ -1,4 +1,5 @@
 .credentials.json
+.last-cleanup
 /backups/
 /cache/
 /paste-cache/
@@ -11,4 +12,5 @@
 mcp-needs-auth-cache.json
 policy-limits.json
 settings.json
+state/langfuse_hook.log
 stats-cache.json
