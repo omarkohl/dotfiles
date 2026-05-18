@@ -17,6 +17,7 @@ This file contains information about my preferences, workflows, and important co
 - Each change/commit must be a semantically coherent unit doing one thing
 - Commit messages: as short as possible, as long as necessary, focus on WHY
 - Follow conventional commit format (e.g., `feat:`, `fix:`, `refactor:`, etc.)
+- `jj` uses a different diff format. If you find it confusing you can pass `--git`
 
 ## GitHub Integration
 - Use `gh` command line tool for all GitHub interactions
