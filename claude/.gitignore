@@ -14,3 +14,4 @@ policy-limits.json
 settings.json
 state/langfuse_hook.log
 stats-cache.json
+.last-update-result.json
