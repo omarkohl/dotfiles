@@ -20,3 +20,4 @@ policy-limits.json
 settings.json
 state/langfuse_hook.log
 stats-cache.json
+.litellm.key
