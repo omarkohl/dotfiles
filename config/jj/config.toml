@@ -4,6 +4,7 @@ name = "Omar Kohl"
 [ui]
 editor = "vim"
 default-command = "log"
+merge-editor = "meld"
 
 [templates]
 draft_commit_description = '''
