@@ -1,5 +1,6 @@
 .credentials.json
 .last-cleanup
+.last-update-result.json
 /backups/
 /cache/
 /paste-cache/
@@ -9,9 +10,13 @@
 /statusline.sh
 /tasks/
 /telemetry/
+daemon.lock
+daemon.log
+daemon.status.json
+daemon/
+jobs/
 mcp-needs-auth-cache.json
 policy-limits.json
 settings.json
 state/langfuse_hook.log
 stats-cache.json
-.last-update-result.json
