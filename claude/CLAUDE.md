@@ -14,7 +14,9 @@ This file contains information about my preferences, workflows, and important co
 - IMPORTANT! Use `jj` (jujutsu) for version control operations. Always use `jj`
   even if the CLAUDE.md of a project only mentions Git. I always want to use `jj`!
 - Primary commands: `jj commit -m "message"` and `jj squash` for modifying previous changes
-- Each change/commit must be a semantically coherent unit doing one thing
+- Each change/commit must be a semantically coherent unit doing one thing,
+  preferably end-to-end from the user's perspective (e.g. don't split a
+  database model change from its related controller change).
 - Commit messages: as short as possible, as long as necessary, focus on WHY
 - Follow conventional commit format (e.g., `feat:`, `fix:`, `refactor:`, etc.)
 - `jj` uses a different diff format. If you find it confusing you can pass `--git`
