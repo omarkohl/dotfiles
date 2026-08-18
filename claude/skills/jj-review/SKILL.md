@@ -1,6 +1,6 @@
 ---
 name: jj-review
-description: Critical code review of a jj commit, focused on correctness, maintainability, and consistency with the codebase. Use when the user asks to review a jj commit/change or invokes /jj-review. Not for GitHub PRs (use /review) or the uncommitted working diff (use /code-review). Args: a jj revision (default @-) and optionally a report mode (report / fix-critical / fix) as well as a commit mode (squash / fixup).
+description: Critical code review of a jj commit, focused on correctness, maintainability, and consistency with the codebase. Use when the user asks to review a jj commit/change or invokes /jj-review. Not for GitHub PRs (use /review) or the uncommitted working diff (use /code-review). Args: a jj revision (default @-) and optionally a report mode (report / fix-critical / fix) as well as a commit mode (squash / commit).
 ---
 
 # jj Code Review
@@ -16,7 +16,7 @@ Critically review a local jj commit. Think critically — the goal is to find re
   - `fix` — implement all findings that are part of the change, report the rest.
 - **Commit Mode** (default `squash`):
   - `squash` — squash everything into `revision`, updating its commit message if appropriate.
-  - `fixup` — create a "fixup: ..." commit on top of `revision` where the findings are explained in the commit message to be able to decide later whether to squash or discard.
+  - `commit` — create a "fixup: ..." commit on top of `revision` where the findings are explained in the commit message to be able to decide later whether to squash or discard.
   - If the report mode is `report` then the commit mode has no effect (notify the user about this).
 
 ## Process
