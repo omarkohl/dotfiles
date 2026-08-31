@@ -209,7 +209,8 @@ augroup configgroup
     autocmd!
     " Remove trailing whitespace on save (preserving cursor position)
     " For markdown: preserve exactly 2 trailing spaces (line breaks), remove 1, normalize 3+ to 2
-    autocmd BufWritePre * let save_view = winsaveview() | if &filetype == 'markdown' | %s/\s\+$/\=len(submatch(0))>=2?"  ":""/e | else | %s/\s\+$//e | endif | call winrestview(save_view)
+    " For tex: leave trailing whitespace untouched (can be significant, e.g. in tabular/verbatim contexts)
+    autocmd BufWritePre * let save_view = winsaveview() | if &filetype == 'markdown' | %s/\s\+$/\=len(submatch(0))>=2?"  ":""/e | elseif &filetype != 'tex' | %s/\s\+$//e | endif | call winrestview(save_view)
 
     " Set specific settings for different file types
     autocmd FileType yaml setlocal ts=2 sts=2 sw=2 expandtab
