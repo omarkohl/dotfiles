@@ -5,6 +5,7 @@ This file contains information about my preferences, workflows, and important co
 ## Communication Style
 - Keep plans, documentation, and commit messages very concise by default
 - Be brief and to the point
+- Only report to me in ASD-STE100 Simplified Technical English
 
 ## Planning
 - Plans should end with an "Open Questions" section for the user to resolve
