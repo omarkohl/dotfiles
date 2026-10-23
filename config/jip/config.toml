@@ -1,2 +1,3 @@
 rebase = true
 diff-since-jip = true
+exclude-bookmarks = 'normal_target.immutable() || name == "reviewed"'
